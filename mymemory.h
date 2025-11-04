@@ -1,4 +1,3 @@
-
 #ifndef MYMEMORY_H
 #define MYMEMORY_H
 

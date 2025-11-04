@@ -1,7 +1,7 @@
 # Gerenciador de Memória - Trabalho 2
 
 ## Descrição
-Biblioteca de gerenciamento de memória em C que implementa alocação e liberação de memória em um pool pré-alocado, com três estratégias diferentes de alocação.
+Biblioteca de gerenciamento de memória em C que implementa alocação e liberação de memória em um pool pré-alocado, utilizando a estratégia First Fit (Primeiro Ajuste).
 
 ## Estrutura do Projeto
 
@@ -33,28 +33,66 @@ Representa o pool de memória:
 ### mymemory_init(size_t size)
 Inicializa o gerenciador com um pool de memória do tamanho especificado.
 
-### mymemory_alloc(mymemory_t *memory, size_t size, allocation_strategy_t strategy)
-Aloca um bloco de memória usando a estratégia especificada:
-- **FIRST_FIT**: primeira lacuna suficientemente grande
-- **BEST_FIT**: menor lacuna suficientemente grande
-- **WORST_FIT**: maior lacuna disponível
+**Parâmetros:**
+- `size`: tamanho do pool em bytes
+
+**Retorno:**
+- Ponteiro para `mymemory_t` em caso de sucesso
+- `NULL` em caso de falha na alocação
+
+### mymemory_alloc(mymemory_t *memory, size_t size)
+Aloca um bloco de memória usando a estratégia **First Fit** (Primeiro Ajuste).
+
+**Parâmetros:**
+- `memory`: ponteiro para o gerenciador de memória
+- `size`: tamanho da alocação desejada em bytes
+
+**Retorno:**
+- Ponteiro para o início do bloco alocado
+- `NULL` se não houver espaço disponível ou se `size` for 0
+
+**Funcionamento:**
+- Percorre a memória sequencialmente do início ao fim
+- Retorna o primeiro espaço livre que seja suficientemente grande
+- Mantém lista ordenada por endereço para eficiência
 
 ### mymemory_free(mymemory_t *memory, void *ptr)
 Libera uma alocação específica.
 
+**Parâmetros:**
+- `memory`: ponteiro para o gerenciador de memória
+- `ptr`: ponteiro para o bloco a ser liberado
+
+**Comportamento:**
+- Remove o bloco da lista de alocações
+- Não faz nada se `ptr` for inválido ou `NULL`
+
 ### mymemory_display(mymemory_t *memory)
-Exibe todas as alocações atuais (endereço e tamanho).
+Exibe todas as alocações atuais.
+
+**Saída:**
+- Número da alocação
+- Endereço de início
+- Tamanho em bytes
 
 ### mymemory_stats(mymemory_t *memory)
-Exibe estatísticas detalhadas:
+Exibe estatísticas detalhadas sobre o uso de memória.
+
+**Estatísticas mostradas:**
 - Número total de alocações
-- Memória alocada/livre
+- Memória total alocada (em bytes)
+- Memória total livre (em bytes)
 - Maior bloco contíguo livre
-- Número de fragmentos
-- Taxa de utilização
+- Número de fragmentos de memória livre
+- Taxa de utilização (percentual)
 
 ### mymemory_cleanup(mymemory_t *memory)
 Libera todos os recursos alocados.
+
+**Comportamento:**
+- Libera todas as estruturas de controle (allocation_t)
+- Libera o pool de memória
+- Libera a estrutura principal (mymemory_t)
 
 ## Compilação e Execução
 
@@ -82,84 +120,271 @@ make valgrind
 make clean
 ```
 
-## Estratégias de Alocação
+## Estratégia de Alocação
 
 ### First Fit (Primeiro Ajuste)
-Percorre a memória e aloca no primeiro espaço livre que seja grande o suficiente.
-- **Vantagem**: Rápido
-- **Desvantagem**: Pode causar fragmentação no início da memória
 
-### Best Fit (Melhor Ajuste)
-Procura o menor espaço livre que seja suficiente para a alocação.
-- **Vantagem**: Minimiza desperdício de espaço
-- **Desvantagem**: Pode criar muitos fragmentos pequenos
+A implementação utiliza a estratégia **First Fit**:
 
-### Worst Fit (Pior Ajuste)
-Aloca no maior espaço livre disponível.
-- **Vantagem**: Deixa fragmentos maiores, potencialmente mais úteis
-- **Desvantagem**: Fragmenta rapidamente grandes blocos
+**Características:**
+- Percorre a memória do início ao fim
+- Aloca no **primeiro** espaço livre que seja grande o suficiente
+- **Complexidade**: O(n) onde n é o número de alocações
+- **Vantagem**: Rápido e simples de implementar
+- **Desvantagem**: Pode causar fragmentação no início da memória ao longo do tempo
+
+#### Como Funciona:
+
+1. Começa no início do pool de memória
+2. Para cada posição, verifica se há uma alocação existente
+3. Se não houver, calcula o tamanho do "gap" (espaço livre)
+4. Se o gap for grande o suficiente (>= tamanho solicitado), aloca nele
+5. Caso contrário, continua para o próximo espaço
+6. Retorna `NULL` se nenhum espaço adequado for encontrado
+
+#### Exemplo Visual:
+
+```
+Estado inicial do pool:
+[------------------------------------------------] (5000 bytes livres)
+
+Após alocar A (1000 bytes):
+[----A----][--------------------------------------]
+
+Após alocar B (500 bytes):
+[----A----][--B--][-------------------------------]
+
+Após alocar C (800 bytes):
+[----A----][--B--][---C---][----------------------]
+
+Após liberar B:
+[----A----][livre][---C---][----------------------]
+
+Alocar D (300 bytes) com First Fit:
+[----A----][--D--][---C---][----------------------]
+            ↑ Usa o primeiro gap que cabe!
+```
+
+#### Fragmentação:
+
+A estratégia First Fit pode levar à fragmentação:
+- **Fragmentação externa**: Vários pequenos gaps entre alocações
+- **Problema**: Memória livre total pode ser grande, mas não há blocos contíguos grandes o suficiente
+
+**Exemplo de fragmentação severa:**
+```
+[A][gap10][B][gap15][C][gap8][D][gap12][E][gap5]
+Total livre: 50 bytes, mas maior bloco contíguo: apenas 15 bytes
+```
 
 ## Testes Implementados
 
-O programa de teste (`main.c`) realiza:
+O programa de teste (`main.c`) realiza 4 conjuntos de testes abrangentes:
 
-1. **Testes por Estratégia**: Testa cada estratégia com:
-   - Múltiplas alocações de tamanhos variados
-   - Liberação alternada (criando fragmentação)
-   - Novas alocações após fragmentação
-   - Exibição de estatísticas em cada fase
+### 1. Teste Básico
+**Objetivo:** Verificar funcionalidade geral do alocador
 
-2. **Teste de Estresse**: 100 operações aleatórias de alocação/liberação
+**Fases:**
+- **Fase 1**: Múltiplas alocações de tamanhos variados (10 a 1200 bytes)
+  - Aproximadamente 30 blocos de tamanhos diferentes
+  - Verifica se todas as alocações são bem-sucedidas
+- **Fase 2**: Liberação alternada (a cada 3 blocos)
+  - Cria fragmentação intencional
+  - Demonstra funcionamento do `mymemory_free()`
+- **Fase 3**: Novas alocações após fragmentação
+  - Testa se First Fit reutiliza os gaps criados
+  - 8 novas alocações de tamanhos variados
+- **Fase 4**: Limpeza completa
+  - Libera todas as alocações restantes
+  - Verifica estado final da memória
+
+### 2. Teste de Fragmentação
+**Objetivo:** Demonstrar problema de fragmentação externa
+
+**Cenário:**
+- Aloca 10 blocos de 400 bytes (pool de 5000 bytes)
+- Libera blocos ímpares (1, 3, 5, 7, 9) - cria padrão "swiss cheese"
+- Tenta alocar 1000 bytes (deve falhar - fragmentado!)
+- Tenta alocar 350 bytes (deve usar os gaps de 400 bytes)
+
+**Demonstra:**
+- Como fragmentação impede alocações grandes
+- Como First Fit reutiliza espaços disponíveis
+
+### 3. Teste de Estresse
+**Objetivo:** Simular uso realista com operações aleatórias
+
+**Características:**
+- 100 operações aleatórias de alocação/liberação
+- Tamanhos aleatórios entre 10 e 510 bytes
+- 50% chance de alocar, 50% chance de liberar
+- Pool de 50000 bytes
+- Exibe estatísticas finais
+
+**Verifica:**
+- Robustez do alocador
+- Comportamento sob carga variável
+- Acumulação de fragmentação
+
+### 4. Teste de Casos Extremos
+**Objetivo:** Verificar tratamento de casos especiais
+
+**Casos testados:**
+- **Teste 1**: Alocar tamanho zero (deve retornar NULL)
+- **Teste 2**: Alocar mais que o pool inteiro (deve retornar NULL)
+- **Teste 3**: Liberar ponteiro NULL (não deve causar erro)
+- **Teste 4**: Liberar ponteiro inválido (não deve causar erro)
+- **Teste 5**: Alocar todo o pool de uma vez (deve funcionar)
+- **Teste 6**: Tentar alocar com pool cheio (deve retornar NULL)
 
 ## Restrições Atendidas
 
-- `malloc()` e `free()` são usados APENAS para:
-  - Alocação do pool de memória inicial
-  - Estruturas de controle (mymemory_t e allocation_t)
-- O alocador retorna endereços válidos dentro do pool
-- Sem vazamentos de memória (verificável com Valgrind)
+✅ **malloc() e free() usados apenas para:**
+  - Alocação do pool de memória inicial (`mymemory_init`)
+  - Estruturas de controle (`mymemory_t` e `allocation_t`)
+
+✅ **O alocador retorna endereços válidos dentro do pool**
+  - Todos os ponteiros retornados apontam para dentro do pool
+
+✅ **Sem vazamentos de memória**
+  - Verificável com Valgrind
+  - `mymemory_cleanup()` libera todos os recursos
 
 ## Características da Implementação
 
-- Lista encadeada mantida **ordenada por endereço** para facilitar busca de gaps
-- Algoritmo eficiente para encontrar blocos livres
-- Tratamento de casos especiais (memória cheia, ponteiros inválidos, etc.)
-- Código limpo e bem comentado
+### Lista Encadeada Ordenada
+- Mantida **ordenada por endereço de memória**
+- Facilita cálculo eficiente dos gaps
+- Simplifica busca de espaços livres
+
+### Algoritmo Eficiente
+- **Complexidade temporal**: O(n) para alocação, onde n = número de alocações
+- **Complexidade espacial**: O(n) para estruturas de controle
+
+### Tratamento Robusto de Erros
+- Verifica ponteiros nulos
+- Valida tamanhos de alocação
+- Ignora operações inválidas sem causar crashes
+
+### Código Limpo
+- Bem comentado e estruturado
+- Nomes de variáveis descritivos
+- Funções modulares e reutilizáveis
 - Sem warnings de compilação
 
-## Como Funciona
+## Como Funciona Internamente
 
-1. O pool é alocado como um grande bloco contíguo
-2. As alocações são rastreadas por uma lista encadeada
-3. A lista é mantida ordenada por endereço de memória
-4. Espaços livres são calculados como "gaps" entre alocações
-5. Na liberação, o nó da lista é removido (mas a memória do pool permanece)
+### Estrutura de Memória
 
-## Exemplo de Uso
+```
+mymemory_t
+├── pool ----------> [Bloco grande de memória contígua]
+├── total_size      (tamanho do pool)
+└── head ----------> allocation_t
+                     ├── start (aponta para pool)
+                     ├── size
+                     └── next --> allocation_t --> allocation_t --> NULL
+```
+
+### Processo de Alocação
+
+1. **Inicialização**: Lista vazia, pool completamente livre
+2. **Primeira alocação**: Cria nó, insere no início da lista
+3. **Alocações subsequentes**: 
+   - Percorre lista ordenada
+   - Calcula gaps entre alocações
+   - Usa primeiro gap adequado
+   - Insere novo nó mantendo ordem
+
+### Processo de Liberação
+
+1. Percorre lista procurando o ponteiro
+2. Remove nó da lista encadeada
+3. Libera estrutura `allocation_t`
+4. Memória no pool fica disponível (gap)
+
+### Cálculo de Gaps
+
+```
+Posição atual no pool
+     ↓
+[----A----][  gap  ][--B--][  gap  ][---C---][  gap  ]
+           ↑        ↑      ↑        ↑        ↑        ↑
+         fim de A  B.start fim de B C.start  fim de C fim do pool
+
+gap_size = próxima_alocação.start - posição_atual
+```
+
+## Exemplo de Uso Completo
 
 ```c
-// Inicializa pool de 10KB
-mymemory_t *mem = mymemory_init(10240);
+#include "mymemory.h"
+#include <stdio.h>
 
-// Aloca 100 bytes usando First Fit
-void *ptr1 = mymemory_alloc(mem, 100, FIRST_FIT);
-
-// Aloca 200 bytes usando Best Fit
-void *ptr2 = mymemory_alloc(mem, 200, BEST_FIT);
-
-// Libera primeira alocação
-mymemory_free(mem, ptr1);
-
-// Exibe estatísticas
-mymemory_stats(mem);
-
-// Limpa tudo
-mymemory_cleanup(mem);
+int main() {
+    // Inicializa pool de 10KB
+    mymemory_t *mem = mymemory_init(10240);
+    if (!mem) {
+        printf("Erro ao inicializar memória\n");
+        return 1;
+    }
+    
+    // Aloca alguns blocos
+    void *ptr1 = mymemory_alloc(mem, 100);
+    void *ptr2 = mymemory_alloc(mem, 200);
+    void *ptr3 = mymemory_alloc(mem, 150);
+    
+    printf("Alocados 3 blocos\n");
+    mymemory_display(mem);
+    
+    // Libera o bloco do meio
+    mymemory_free(mem, ptr2);
+    printf("\nApós liberar ptr2:\n");
+    mymemory_stats(mem);
+    
+    // Aloca um bloco que cabe no gap
+    void *ptr4 = mymemory_alloc(mem, 180);
+    printf("\nApós alocar 180 bytes (usa gap de ptr2):\n");
+    mymemory_display(mem);
+    
+    // Estatísticas finais
+    mymemory_stats(mem);
+    
+    // Limpa tudo
+    mymemory_cleanup(mem);
+    
+    return 0;
+}
 ```
+
+## Limitações Conhecidas
+
+1. **Fragmentação Externa**: First Fit pode criar muitos pequenos gaps inutilizáveis
+2. **Sem Coalescência**: Gaps adjacentes não são unidos automaticamente
+3. **Sem Compactação**: Memória não é reorganizada para eliminar fragmentação
+4. **Busca Linear**: Alocações maiores podem ser lentas em pools muito fragmentados
+
+## Possíveis Melhorias Futuras
+
+- Implementar coalescência de blocos livres adjacentes
+- Adicionar outras estratégias (Best Fit, Worst Fit)
+- Implementar compactação de memória
+- Usar árvores balanceadas para busca mais rápida
+- Adicionar alinhamento de memória
+- Implementar pool de tamanho variável (expansível)
 
 ## Observações
 
-- A implementação foi desenvolvida seguindo as especificações do trabalho
-- Todo o código é original e comentado
-- O programa compila sem erros ou warnings
-- Testado e verificado com Valgrind para memory leaks
+- ✅ Implementação original seguindo especificações do trabalho
+- ✅ Todo o código está comentado e documentado
+- ✅ Compila sem erros ou warnings (gcc com -Wall -Wextra)
+- ✅ Testado e verificado com Valgrind (sem memory leaks)
+- ✅ Testes abrangentes demonstram funcionamento correto
+- ✅ Pronto para apresentação e entrega
+
+## Autores
+
+Matheus Berwaldt e Lucas Fraga
+## Data
+
+Novembro de 2024
