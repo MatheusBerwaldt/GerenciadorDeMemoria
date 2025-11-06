@@ -1,4 +1,4 @@
-# Gerenciador de Memória - Trabalho 2
+# Gerenciador de Memória
 
 ## Descrição
 Biblioteca de gerenciamento de memória em C que implementa alocação e liberação de memória em um pool pré-alocado, utilizando a estratégia First Fit (Primeiro Ajuste).
@@ -387,4 +387,4 @@ int main() {
 Matheus Berwaldt e Lucas Fraga
 ## Data
 
-Novembro de 2024
+Novembro de 2025
